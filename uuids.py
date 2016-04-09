@@ -26,7 +26,7 @@ def canonical_uuid(uuid):
         uuid=str(uuid)
 
     if len(uuid) < 32:
-        uuid="%08x-0000-1000-8000-00805f9b34fb"%int(uuid)
+        uuid="%08x-0000-1000-8000-00805f9b34fb"%int(uuid,0)
 
     return uuid
 

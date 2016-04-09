@@ -5,6 +5,15 @@ import uuid_registry
 
 from bluepy import btle
 
+debug_fd=file('/tmp/bluepy_debug.txt','a')
+print >> debug_fd, 80*'-'
+
+def DBG(*args):
+    print >> debug_fd, " ".join(args)
+
+btle.DBG=DBG
+btle.Debugging=True
+
 import threading,Queue
 
 class NotSupportedException(Exception): pass
@@ -324,19 +333,63 @@ class Device(uuid_registry.UUIDClass):
             self.scandata={}
             for _,name,val in self.scanentry.getScanData():
                 self.scandata[name]=val
-            self.scandata['Name']=str(self.scandata['Complete Local Name'])
+            
+            try:
+                localname = str(self.scandata['Complete Local Name'])
+            except KeyError:
+                localname = None
 
-            uuid_iter = iter(self.scandata['Complete 16b Services'])
+            self.scandata['Name']=localname
+                
+            self.uuids=[]
+
+            try:
+                uuid_scan=self.scandata['Complete 16b Services']
+            except KeyError:
+                uuid_scan=""
+
+            uuid_iter = iter(uuid_scan)
             def uuid_16s():
                 while 1:
                     lsb = int(uuid_iter.next()+uuid_iter.next(),16)
                     msb = int(uuid_iter.next()+uuid_iter.next(),16)
-                    yield 256*msb+lsb
+                    yield uuids.canonical_uuid(256*msb+lsb)
+                    
+            self.uuids.extend(list(uuid_16s()))
 
-            self.uuids = [uuids.canonical_uuid(uuid) for uuid in uuid_16s()]
+            try:
+                uuid_scan=self.scandata['Incomplete 128b Services']
+            except KeyError:
+                uuid_scan=""
+
+            uuid_iter = iter(uuid_scan)
+
+            def uuid_128s():
+                while 1:
+                    byte_list=[]
+                    for x in range(128/8):
+                        byte_list.append(int(uuid_iter.next()+uuid_iter.next(),16))
+                    byte_list.reverse()
+
+                    def part(s):
+                        return ''.join('%02x' for b in s)
+
+                    yield '-'.join([part(byte_list[0:4]),
+                                    part(byte_list[4:6]),
+                                    part(byte_list[6:8]),
+                                    part(byte_list[8:10]),
+                                    part(byte_list[10:16])])
+
+            self.uuids.extend(list(uuid_128s()))
 
             self.address = self.scanentry.addr
-            self.atype = self.scanentry.atype
+
+            # not sure when this attribute name changed so, check both
+            try:
+                self.atype = self.scanentry.addrType
+            except AttributeError:
+                self.atype = self.scanentry.atype
+
 
     def _notify_cb(self, handle, data):
         with notify_lock:
@@ -354,9 +407,8 @@ class Device(uuid_registry.UUIDClass):
         self.dev.delegate.handleNotification=self._notify_cb
 
         ret = []
-
+                
         for service in self.dev.getServices():
-
             try:
                 cls = uuid_registry.lookup_uuid(str(service.uuid))
             except KeyError:
@@ -380,10 +432,18 @@ class Device(uuid_registry.UUIDClass):
         return self.scandata[item]
 
     def connect(self):
-        self.dev = btle.Peripheral(self.address,
-                                   self.atype)
-        self.services=self._services()
-        return self
+        for attempt in range(10):
+            try:
+                self.dev = btle.Peripheral(self.address,
+                                           self.atype)
+                self.services=self._services()
+                return self
+
+            except btle.BTLEException as e:
+                if e.code != btle.BTLEException.DISCONNECTED:
+                    raise
+            print "Attempt",attempt
+        raise
 
     def disconnect(self):
         self.dev.disconnect()
@@ -442,13 +502,24 @@ def discover_devices(scanfunc=None, uuid=None, timeout=6, limitone=False):
 
     scanner = btle.Scanner().withDelegate(ScanPrint())
 
-    for d in scanner.scan(timeout):
-        device=Device(d)
+    t0=time.time()
+    
+    scanned=set()
 
-        if scanfunc(device):
-            yield device
+    while time.time() < t0+timeout:
 
-def discover_device(scanfunc=None, uuid=None, timeout=6):
+        # Scanner.scan() has no way to return early
+        # so we will just do a succession of really short scans
+
+        for d in scanner.scan(timeout = 0.1):
+            if not d.addr in scanned:
+                scanned.add(d.addr)
+
+                device=Device(d)
+                if scanfunc(device):
+                    yield device
+
+def discover_device(scanfunc=None, uuid=None, timeout=30):
     for d in discover_devices(scanfunc, uuid, timeout, limitone=True):
         return d
     raise IOError("Couldn't find device")
@@ -457,7 +528,7 @@ def done():
     pass
 
 if __name__=="__main__":
-    #for d in discover_devices():
-    #    print d.uuids
-    print discover_device(lambda d:d['Name'].startswith('Pico'))
+    for d in discover_devices():
+        print d.uuids
+    
 

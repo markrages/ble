@@ -133,7 +133,7 @@ class Characteristic(uuid_registry.UUIDClass):
             self._write_procedure=COMMAND
         elif self.write_requestable:
             self._write_procedure=REQUEST
-            
+
         self.notify_event=threading.Event()
 
     def __getitem__(self, item):
@@ -162,7 +162,7 @@ class Characteristic(uuid_registry.UUIDClass):
 
     @property
     def writeable(self):
-        return 'write_no_resp' in self.flags
+        return 'write-without-response' in self.flags
 
     @property
     def write_requestable(self):
@@ -514,7 +514,6 @@ def done():
     ble_thread.join()
 
 if __name__=="__main__":
-    #for d in discover_devices():
-    #    print d.uuids
-    print discover_device(lambda d:d['Name'].startswith('Pico'))
+    for d in discover_devices():
+        print d.uuids
 

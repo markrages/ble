@@ -14,9 +14,9 @@ def load_classes(directory=None):
 
     import glob
     modules = glob.glob(directory+"/*.py")
-    sys.path.append(directory)
+    sys.path = [directory] + sys.path
     profiles = map(__import__,[basename(f)[:-3] for f in modules if isfile(f)])
-    del sys.path[-1]
+    sys.path.pop(0)
 
 uuid_registry={}
 

@@ -5,10 +5,12 @@ import os
 zipfilename = os.path.expanduser('~/firmware.zip')
 device_name = os.getenv('BLE_DEVICE_NAME') or 'Example Device'
 
+device_names = [device_name, 'DfuTarg']
+
 import ble
 
 try:
-    dev = ble.discover_device(lambda d: d['Name'] == device_name)
+    dev = ble.discover_device(lambda d: d['Name'] in device_names)
 
     #address='cd:83:22:a3:1c:5e'
     #dev=ble.Device(address)
@@ -32,9 +34,10 @@ try:
         dev.dfu_service.load_zip_file(zipfilename)
 
     except:
+        raise
         print "Resetting"
         dev.dfu_service.reset_dfu()
-        raise
+
 
 finally:
     ble.done()

@@ -4,6 +4,7 @@ import ble
 import uuids
 
 OPCODE_START_CALIBRATION=12
+OPCODE_SET_CPM_MASK=13
 
 RESPONSE_VALUE_SUCCESS=1
 
@@ -33,7 +34,17 @@ class CyclingPowerService(ble.Service):
         if raw_value > 0x7fff:
             raw_value -= 0x10000
         return {"nm32":raw_value,"Nm":raw_value/32.}
- 
+
+    def set_reported_features(self, mask):
+        cp = self.cycling_power_control_point
+        
+        cp.notifying=True
+        resp = cp.write_opcode(OPCODE_SET_CPM_MASK,[mask & 0xff, mask >> 8])
+        assert(resp[0]==0x20) # control response
+        assert(resp[1]==OPCODE_SET_CPM_MASK)
+        response_value = resp[2]
+        cp.check_fail(response_value)
+         
 class CyclingPowerControlPoint(ble.Characteristic):
     uuid=uuids.cycling_power_control_point
 
@@ -46,10 +57,12 @@ class CyclingPowerControlPoint(ble.Characteristic):
 
     def write_opcode(self, 
                      opcode,
+                     data=None,
                      timeout=30, # seconds
                  ):
+        data = data or []
         self.notify_timeout=timeout
-        self.value = [opcode]
+        self.value = [opcode]+data
         return self.value
 
 class CyclingPowerMeasurement(ble.Characteristic):
