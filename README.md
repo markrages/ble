@@ -18,7 +18,6 @@ $ python
 [100]
 >>> dev.heart_rate_service.heart_rate_measurement.notifying=True
 >>> print dev.heart_rate_service.heart_rate_measurement.value
->>> dev.heart_rate.()
 {'hr': 97}
 ```
 
@@ -96,7 +95,9 @@ Examples
 
 There are two examples included in the distribution.
 
-`example_client.py` connects to a power meter, prints a single power
+`hr_client.py` connects to a heart rate monitor, prints ten heart rate readings, then attemps to reset the energy integrator.
+
+`cps_client.py` connects to a power meter, prints a single power
 notification, then does a calibration.
 
 `example_dfu.py` connects to a Nordic Semiconductor nRF5x device with
