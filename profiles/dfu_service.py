@@ -201,6 +201,9 @@ class DfuStatus(ble.Characteristic):
 
 class DfuControlPoint(ble.Characteristic):
     uuid_def=('00001531'+nordic_base,'dfu_control_point','Nordic DFU Control Point')
+    def __init__(self, *args, **kwargs):
+        super(DfuControlPoint, self).__init__(*args, **kwargs)
+        self.notify_timeout = 45.0 # We have to wait longer for writes to complete
 
 class DfuVersion(ble.Characteristic):
     uuid_def=('00001534'+nordic_base,'dfu_version','Nordic DFU Version')

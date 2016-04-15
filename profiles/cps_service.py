@@ -153,3 +153,69 @@ class CyclingPowerMeasurement(ble.Characteristic):
           meas['joules'] = accum_j
 
         return meas
+
+class CyclingPowerVector(ble.Characteristic):
+    uuid=uuids.cycling_power_vector
+
+    @property
+    def value(self):
+        return self.interpret_raw_cpv_measurement(self.raw)
+
+    def interpret_raw_cpv_measurement(self, raw_value):
+        
+        value = [ord(c) for c in raw_value]
+
+        flags = value.pop(0)
+
+        flag_names = [
+            ('Crank Revolution Data Present',(False, True)),
+            ('First Crank Measurement Angle Present',(False, True)),
+            ('Instant Force Magnitude Array Present',(False, True)),
+            ('Instant Torque Magnitude Array Present',(False, True)),
+        ]
+
+        meas={'flags':flags}
+        for i,(name,choice) in enumerate(flag_names):
+          meas[name]=choice[bool(flags & (1<<i))]
+
+        meas['Measurement Direction']=['Unknown',
+                                       'Tangential Component',
+                                       'Radial Component',
+                                       'Lateral Component'][(flags >> 4)&3]
+
+        if meas['Crank Revolution Data Present']:
+            revs = value.pop(0)
+            revs += 256*value.pop(0)
+            
+            crank_time = value.pop(0)
+            crank_time += 256*value.pop(0)
+            
+            meas['crank_revs']=revs
+            meas['crank_time']=crank_time/1024.
+
+        if meas['First Crank Measurement Angle Present']:
+            angle = value.pop(0)
+            angle += 256*value.pop(0)
+            meas['first_angle'] = angle
+            
+        if meas['Instant Force Magnitude Array Present']:
+            forces=[]
+            while value:
+                force = value.pop(0)
+                force += 256*value.pop(0)
+                if force > 0x8000:
+                    force -= 0x10000
+                forces.append(force)
+            meas['force_array']=forces
+
+        if meas['Instant Torque Magnitude Array Present']:
+            torques=[]
+            while value:
+                torque = value.pop(0)
+                torque += 256*value.pop(0)
+                if torque > 0x8000:
+                    torque -= 0x10000
+                torques.append(torque)
+            meas['torque_array']=torques
+
+        return meas

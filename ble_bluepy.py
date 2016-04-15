@@ -18,6 +18,7 @@ import threading,Queue
 
 class NotSupportedException(Exception): pass
 class NoNotifyException(Exception): pass
+class BleException(Exception): pass
 
 COMMAND='command'
 REQUEST='request'
@@ -122,7 +123,10 @@ class Characteristic(uuid_registry.UUIDClass):
         if response is None:
             response=self._write_resp
         val = ''.join(chr(c) for c in value)
-        self.char.write(val, response)
+        try:
+            self.char.write(val, response)
+        except btle.BTLEException as e:
+            raise BleException(e)
 
     @property
     def notify_timeout(self):
@@ -130,7 +134,7 @@ class Characteristic(uuid_registry.UUIDClass):
         
     @notify_timeout.setter
     def notify_timeout(self,value):
-        self._notify_timeout=float(self._notify_timeout)
+        self._notify_timeout=float(value)
 
     @property
     def read_procedure(self):
@@ -264,7 +268,7 @@ class Characteristic(uuid_registry.UUIDClass):
                 break
 
             if retval is None:
-                raise NoNotifyException
+                raise NoNotifyException(str(self.notify_timeout))
 
 class Service(uuid_registry.UUIDClass):
     def __init__(self, btle_service): 
